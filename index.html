@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verificación de Despacho</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap');
+
+  :root {
+    --gold: #C9A84C;
+    --gold-light: #E8D5A3;
+    --black: #0A0A08;
+    --white: #F9F6F0;
+    --surface: #141410;
+    --surface2: #1E1E18;
+    --border: #2A2A22;
+    --ok: #4CAF7D;
+    --warn: #E8A838;
+    --err: #E85338;
+    --text-muted: #6B6B55;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--black); color: var(--white); min-height: 100vh; overflow-x: hidden; }
+
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 1000; opacity: 0.4;
+  }
+
+  header { display: flex; align-items: center; justify-content: space-between; padding: 20px 28px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .logo { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--gold); letter-spacing: 0.15em; text-transform: uppercase; }
+  .logo span { color: var(--text-muted); font-size: 0.7rem; display: block; letter-spacing: 0.3em; font-family: 'DM Mono', monospace; margin-top: 2px; }
+
+  .status-badge { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.2em; padding: 5px 12px; border-radius: 20px; text-transform: uppercase; border: 1px solid; }
+  .status-badge.idle { color: var(--text-muted); border-color: var(--border); }
+  .status-badge.active { color: var(--ok); border-color: var(--ok); background: rgba(76,175,125,0.08); }
+  .status-badge.done { color: var(--gold); border-color: var(--gold); background: rgba(201,168,76,0.08); }
+
+  .screen { display: none; padding: 24px 20px; max-width: 600px; margin: 0 auto; }
+  .screen.active { display: block; animation: fadeUp 0.3s ease; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+  h2 { font-family: 'Playfair Display', serif; font-size: 1.6rem; color: var(--white); margin-bottom: 6px; }
+  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 28px; line-height: 1.5; }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: 12px; padding: 48px 24px; text-align: center; cursor: pointer; transition: all 0.25s; background: var(--surface); position: relative; }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--gold); background: rgba(201,168,76,0.05); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 2.4rem; margin-bottom: 12px; }
+  .upload-zone p { color: var(--text-muted); font-size: 0.9rem; }
+  .upload-zone strong { color: var(--gold); }
+
+  .mapping-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .mapping-card h4 { font-size: 0.78rem; color: var(--gold); letter-spacing: 0.12em; text-transform: uppercase; font-family: 'DM Mono', monospace; margin-bottom: 16px; }
+  .mapping-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .mapping-label { font-size: 0.78rem; width: 88px; flex-shrink: 0; }
+  .mapping-label strong { color: var(--white); display: block; font-size: 0.84rem; }
+  .mapping-label span { color: var(--text-muted); font-size: 0.68rem; }
+  .mapping-select { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 9px 12px; color: var(--white); font-family: 'DM Mono', monospace; font-size: 0.78rem; outline: none; transition: border-color 0.2s; }
+  .mapping-select:focus { border-color: var(--gold); }
+  .mapping-select option { background: var(--surface2); }
+  .auto-badge { font-size: 0.63rem; padding: 3px 8px; border-radius: 10px; background: rgba(76,175,125,0.15); color: var(--ok); font-family: 'DM Mono', monospace; white-space: nowrap; flex-shrink: 0; }
+
+  .field-group { margin-bottom: 20px; }
+  label { display: block; font-size: 0.73rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; font-family: 'DM Mono', monospace; }
+  input[type="text"] { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 13px 16px; color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+  input[type="text"]:focus { border-color: var(--gold); }
+
+  .preview-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+  .preview-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .preview-header span { font-family: 'DM Mono', monospace; font-size: 0.75rem; color: var(--text-muted); }
+  .preview-header strong { font-size: 0.85rem; color: var(--gold); }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; font-size: 0.84rem; border-bottom: 1px solid rgba(42,42,34,0.5); }
+  tr:last-child td { border-bottom: none; }
+  .ean-code { font-family: 'DM Mono', monospace; color: var(--gold-light); font-size: 0.74rem; }
+  .date-cell { font-family: 'DM Mono', monospace; font-size: 0.74rem; color: var(--text-muted); }
+
+  .btn { display: block; width: 100%; padding: 15px; border-radius: 10px; border: none; font-family: 'DM Sans', sans-serif; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: var(--gold); color: var(--black); }
+  .btn-primary:hover { background: var(--gold-light); transform: translateY(-1px); }
+  .btn-primary:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; transform: none; }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-top: 10px; }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
+
+  .order-info { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .order-info-item { flex: 1; min-width: 70px; }
+  .order-info-item .val { font-size: 0.92rem; font-weight: 500; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .order-info-item .lbl { font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.15em; color: var(--text-muted); text-transform: uppercase; }
+
+  .progress-ring-wrap { text-align: center; margin-bottom: 24px; }
+  .progress-ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--border); stroke-width: 8; }
+  .ring-fill { fill: none; stroke: var(--gold); stroke-width: 8; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease; }
+  .progress-center { position: relative; display: inline-block; }
+  .progress-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; }
+  .progress-text .big { font-family: 'Playfair Display', serif; font-size: 2rem; color: var(--white); }
+  .progress-text .small { font-family: 'DM Mono', monospace; font-size: 0.65rem; color: var(--text-muted); letter-spacing: 0.1em; }
+
+  .scan-area { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center; }
+  .scan-area .scan-icon { font-size: 2rem; margin-bottom: 10px; }
+  .scan-area p { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
+  .scan-input-row { display: flex; gap: 10px; }
+  .scan-input-row input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 13px 14px; color: var(--white); font-family: 'DM Mono', monospace; font-size: 0.95rem; letter-spacing: 0.06em; outline: none; transition: border-color 0.2s; text-align: center; }
+  .scan-input-row input:focus { border-color: var(--gold); }
+  .btn-cam { padding: 13px 16px; background: var(--surface2); color: var(--gold); border: 1px solid var(--border); border-radius: 8px; font-size: 1.2rem; cursor: pointer; transition: all 0.2s; }
+  .btn-cam:hover { border-color: var(--gold); background: rgba(201,168,76,0.1); }
+
+  .items-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+  .item-row { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: border-color 0.3s, background 0.3s; }
+  .item-row.complete { border-color: var(--ok); background: rgba(76,175,125,0.06); }
+  .item-row.partial { border-color: var(--warn); background: rgba(232,168,56,0.06); }
+  .item-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--border); transition: all 0.3s; }
+  .item-row.complete .item-dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .item-row.partial .item-dot { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .item-info { flex: 1; min-width: 0; }
+  .item-ean { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: var(--gold-light); }
+  .item-name { font-size: 0.86rem; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-date { font-family: 'DM Mono', monospace; font-size: 0.67rem; color: var(--text-muted); margin-top: 2px; }
+  .item-count { font-family: 'DM Mono', monospace; text-align: right; flex-shrink: 0; }
+  .item-count .sc { font-size: 1.1rem; font-weight: 500; }
+  .item-count .tot { color: var(--text-muted); font-size: 0.74rem; }
+
+  .summary-hero { text-align: center; padding: 32px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; margin-bottom: 20px; }
+  .summary-hero .s-icon { font-size: 3rem; margin-bottom: 12px; }
+  .summary-hero h3 { font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-bottom: 6px; }
+  .summary-hero p { color: var(--text-muted); font-size: 0.88rem; }
+
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .summary-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .summary-stat .num { font-family: 'Playfair Display', serif; font-size: 2rem; color: var(--gold); }
+  .summary-stat .desc { font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; }
+
+  .missing-list { background: rgba(232,83,56,0.08); border: 1px solid rgba(232,83,56,0.3); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .missing-list h4 { color: var(--err); font-size: 0.85rem; margin-bottom: 12px; }
+  .missing-item { font-size: 0.82rem; padding: 8px 0; border-bottom: 1px solid rgba(232,83,56,0.15); }
+  .missing-item:last-child { border-bottom: none; }
+  .missing-item .mref { font-family: 'DM Mono', monospace; color: var(--gold-light); font-size: 0.73rem; }
+  .missing-item .mname { color: var(--white); margin-top: 1px; }
+  .missing-item .mcount { color: var(--err); font-family: 'DM Mono', monospace; font-size: 0.78rem; margin-top: 2px; }
+
+  .timestamp { font-family: 'DM Mono', monospace; font-size: 0.7rem; color: var(--text-muted); text-align: center; margin-bottom: 16px; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: flex; align-items: flex-end; justify-content: center; z-index: 500; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal-box { background: var(--surface2); border-top: 1px solid var(--border); border-radius: 20px 20px 0 0; padding: 24px 20px; width: 100%; max-width: 600px; transform: translateY(30px); transition: transform 0.3s; }
+  .modal-overlay.open .modal-box { transform: translateY(0); }
+  #videoEl { width: 100%; border-radius: 10px; margin-bottom: 16px; background: #000; max-height: 280px; object-fit: cover; }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; margin-bottom: 6px; text-align: center; }
+  .modal-hint { font-size: 0.8rem; color: var(--text-muted); text-align: center; margin-bottom: 14px; }
+
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); border-radius: 10px; padding: 14px 24px; font-size: 0.9rem; font-weight: 500; z-index: 999; transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); max-width: 340px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.ok { background: var(--ok); color: #fff; }
+  .toast.warn { background: var(--warn); color: #fff; }
+  .toast.err { background: var(--err); color: #fff; }
+
+  @media (min-width: 600px) { .screen { padding: 32px 24px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Despacho <span>Verificación de Pedidos</span></div>
+  <div class="status-badge idle" id="globalBadge">En espera</div>
+</header>
+
+<!-- SCREEN 1: CARGAR -->
+<div class="screen active" id="screen-upload">
+  <h2>Cargar pedido</h2>
+  <p class="subtitle">Sube el Excel del pedido. El sistema detecta automáticamente las columnas de fecha, cantidad, nombre y EAN.</p>
+
+  <div class="upload-zone" id="uploadZone">
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <div class="upload-icon">📋</div>
+    <p><strong>Toca aquí para subir el Excel</strong></p>
+    <p style="margin-top:6px;font-size:0.78rem;">.xlsx · .xls · .csv</p>
+  </div>
+
+  <div id="uploadFeedback" style="margin-top:12px;font-size:0.82rem;color:var(--ok);text-align:center;display:none;"></div>
+
+  <div id="mappingSection" style="display:none;margin-top:24px;">
+    <div class="mapping-card">
+      <h4>Columnas detectadas</h4>
+      <div class="mapping-row">
+        <div class="mapping-label"><strong>EAN</strong><span>Requerido</span></div>
+        <select class="mapping-select" id="colEan"></select>
+        <div class="auto-badge" id="badgeEan" style="display:none">Auto ✓</div>
+      </div>
+      <div class="mapping-row">
+        <div class="mapping-label"><strong>Nombre</strong><span>Requerido</span></div>
+        <select class="mapping-select" id="colName"></select>
+        <div class="auto-badge" id="badgeName" style="display:none">Auto ✓</div>
+      </div>
+      <div class="mapping-row">
+        <div class="mapping-label"><strong>Cantidad</strong><span>Requerido</span></div>
+        <select class="mapping-select" id="colQty"></select>
+        <div class="auto-badge" id="badgeQty" style="display:none">Auto ✓</div>
+      </div>
+      <div class="mapping-row">
+        <div class="mapping-label"><strong>Fecha</strong><span>Opcional</span></div>
+        <select class="mapping-select" id="colDate"></select>
+        <div class="auto-badge" id="badgeDate" style="display:none">Auto ✓</div>
+      </div>
+    </div>
+
+    <div class="field-group">
+      <label>Tienda destino</label>
+      <input type="text" id="storeName" placeholder="Ej: Tienda Centro Comercial Andino">
+    </div>
+
+    <div class="preview-card">
+      <div class="preview-header">
+        <strong>Vista previa</strong>
+        <span id="itemCount">0 referencias</span>
+      </div>
+      <table>
+        <thead><tr><th>EAN</th><th>Nombre</th><th>Cant.</th><th>Fecha</th></tr></thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </div>
+
+    <button class="btn btn-primary" onclick="startVerification()">Iniciar verificación →</button>
+  </div>
+
+  <button class="btn btn-ghost" onclick="loadDemo()">Probar con pedido de ejemplo</button>
+</div>
+
+<!-- SCREEN 2: ESCANEO -->
+<div class="screen" id="screen-scan">
+  <div class="order-info">
+    <div class="order-info-item"><div class="lbl">Tienda</div><div class="val" id="scanStore">—</div></div>
+    <div class="order-info-item"><div class="lbl">Fecha pedido</div><div class="val" id="scanDate">—</div></div>
+    <div class="order-info-item"><div class="lbl">Referencias</div><div class="val" id="scanRefs">—</div></div>
+  </div>
+
+  <div class="progress-ring-wrap">
+    <div class="progress-center">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle class="ring-bg" cx="60" cy="60" r="52"/>
+        <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+      </svg>
+      <div class="progress-text">
+        <div class="big" id="progressPct">0%</div>
+        <div class="small">LISTO</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scan-area">
+    <div class="scan-icon">📦</div>
+    <p>Escanea el EAN de la etiqueta o escríbelo manualmente</p>
+    <div class="scan-input-row">
+      <input type="text" id="barcodeInput" placeholder="Código EAN..." autocomplete="off" inputmode="numeric">
+      <button class="btn-cam" onclick="openCamera()">📷</button>
+    </div>
+    <button class="btn btn-ghost" style="margin-top:10px;width:100%;" onclick="processBarcode()">Confirmar ↵</button>
+  </div>
+
+  <div class="items-list" id="itemsList"></div>
+
+  <button class="btn btn-primary" id="closeOrderBtn" onclick="closeOrder()" disabled>Cerrar despacho</button>
+  <button class="btn btn-ghost" onclick="cancelOrder()">Cancelar</button>
+</div>
+
+<!-- SCREEN 3: RESUMEN -->
+<div class="screen" id="screen-summary">
+  <div class="summary-hero" id="summaryHero"></div>
+  <div class="timestamp" id="summaryTs"></div>
+  <div class="summary-grid">
+    <div class="summary-stat"><div class="num" id="stTotal">0</div><div class="desc">Referencias totales</div></div>
+    <div class="summary-stat"><div class="num" id="stUnits">0</div><div class="desc">Unidades despachadas</div></div>
+    <div class="summary-stat"><div class="num" id="stOk">0</div><div class="desc">Completas</div></div>
+    <div class="summary-stat"><div class="num" id="stMissing" style="color:var(--err)">0</div><div class="desc">Con faltantes</div></div>
+  </div>
+  <div class="missing-list" id="missingSection" style="display:none;">
+    <h4>⚠️ Referencias con faltantes</h4>
+    <div id="missingBody"></div>
+  </div>
+  <button class="btn btn-primary" onclick="newOrder()">Nuevo despacho</button>
+  <button class="btn btn-ghost" onclick="window.print()">🖨️ Imprimir comprobante</button>
+</div>
+
+<!-- CAMERA -->
+<div class="modal-overlay" id="cameraModal">
+  <div class="modal-box">
+    <div class="modal-title">Escanear código EAN</div>
+    <p class="modal-hint">Centra el código de barras en la cámara</p>
+    <video id="videoEl" autoplay playsinline muted></video>
+    <button class="btn btn-primary" onclick="closeCamera()">Cerrar cámara</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+let orderItems = [], rawHeaders = [], rawRows = [];
+let storeName = '', orderDate = '';
+let cameraStream = null, barcodeInterval = null;
+
+// UPLOAD
+document.getElementById('fileInput').addEventListener('change', e => { if(e.target.files[0]) readExcel(e.target.files[0]); });
+const uzone = document.getElementById('uploadZone');
+uzone.addEventListener('dragover', e => { e.preventDefault(); uzone.classList.add('drag'); });
+uzone.addEventListener('dragleave', () => uzone.classList.remove('drag'));
+uzone.addEventListener('drop', e => { e.preventDefault(); uzone.classList.remove('drag'); if(e.dataTransfer.files[0]) readExcel(e.dataTransfer.files[0]); });
+
+function readExcel(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false});
+      let hi = 0;
+      for(let i=0;i<Math.min(5,rows.length);i++) { if(rows[i].filter(c=>c&&String(c).trim()).length>=3){hi=i;break;} }
+      rawHeaders = rows[hi].map(h=>String(h||'').trim());
+      rawRows = rows.slice(hi+1).filter(r=>r.some(c=>c&&String(c).trim()));
+      populateCols(rawHeaders);
+      autoDetect(rawHeaders);
+      document.getElementById('mappingSection').style.display='block';
+      document.getElementById('uploadFeedback').style.display='block';
+      document.getElementById('uploadFeedback').textContent=`✓ "${file.name}" — ${rawRows.length} filas cargadas`;
+      updatePreview();
+    } catch(e) { showToast('Error al leer el archivo','err'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function populateCols(headers) {
+  ['colEan','colName','colQty','colDate'].forEach(id => {
+    const s = document.getElementById(id);
+    s.innerHTML = '<option value="">— Sin asignar —</option>';
+    headers.forEach((h,i) => { const o=document.createElement('option'); o.value=i; o.textContent=h||`Col ${i+1}`; s.appendChild(o); });
+    s.addEventListener('change', updatePreview);
+  });
+}
+
+function autoDetect(headers) {
+  const lo = headers.map(h=>h.toLowerCase());
+  const pats = {
+    colEan:  ['ean','código de barras','codigo de barras','barcode','cod.barras','codbarras'],
+    colName: ['nombre','name','referencia','ref','descripción','descripcion','producto','artículo','articulo'],
+    colQty:  ['cantidad','qty','cant','unidades','units','piezas','und'],
+    colDate: ['fecha','date','fec']
+  };
+  Object.entries(pats).forEach(([id,kws]) => {
+    const idx = lo.findIndex(h => kws.some(k=>h.includes(k)));
+    if(idx>=0) {
+      document.getElementById(id).value=idx;
+      document.getElementById('badge'+id.replace('col','')).style.display='block';
+    }
+  });
+}
+
+function gv(row,selId) { const i=document.getElementById(selId).value; return i===''?'':String(row[parseInt(i)]||'').trim(); }
+
+function buildItems() {
+  return rawRows.map(r=>({ ean:gv(r,'colEan'), name:gv(r,'colName')||gv(r,'colEan'), qty:parseInt(gv(r,'colQty'))||1, date:gv(r,'colDate'), scanned:0 })).filter(it=>it.ean);
+}
+
+function updatePreview() {
+  const items = buildItems();
+  document.getElementById('itemCount').textContent=`${items.length} referencias`;
+  const tb=document.getElementById('previewBody'); tb.innerHTML='';
+  items.slice(0,7).forEach(it=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="ean-code">${it.ean}</td><td>${it.name}</td><td>${it.qty}</td><td class="date-cell">${it.date||'—'}</td>`;
+    tb.appendChild(tr);
+  });
+  if(items.length>7){ const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="4" style="color:var(--text-muted);font-size:0.78rem;text-align:center">... y ${items.length-7} más</td>`; tb.appendChild(tr); }
+}
+
+function loadDemo() {
+  rawHeaders=['EAN','Nombre Referencia','Cantidad','Fecha'];
+  rawRows=[
+    ['7700000100012','Argolla Dorada Lisa 18k','4','15/03/2025'],
+    ['7700000100029','Collar Gargantilla Perla','2','15/03/2025'],
+    ['7700000100036','Pulsera Eslabón Grueso','3','15/03/2025'],
+    ['7700000100043','Aretes Lágrima Cristal','5','15/03/2025'],
+    ['7700000100050','Anillo Solitario Plata','2','15/03/2025'],
+    ['7700000100067','Collar Corazón Baño Oro','3','15/03/2025'],
+  ];
+  populateCols(rawHeaders);
+  document.getElementById('colEan').value=0;
+  document.getElementById('colName').value=1;
+  document.getElementById('colQty').value=2;
+  document.getElementById('colDate').value=3;
+  ['Ean','Name','Qty','Date'].forEach(k=>document.getElementById('badge'+k).style.display='block');
+  document.getElementById('mappingSection').style.display='block';
+  document.getElementById('uploadFeedback').style.display='block';
+  document.getElementById('uploadFeedback').textContent='✓ Pedido de ejemplo cargado — 6 referencias';
+  document.getElementById('storeName').value='Tienda Centro Comercial Ejemplo';
+  updatePreview();
+}
+
+function startVerification() {
+  orderItems = buildItems();
+  if(!orderItems.length){ showToast('No hay referencias válidas. Verifica las columnas.','err'); return; }
+  storeName = document.getElementById('storeName').value.trim() || 'Sin nombre';
+  orderDate = orderItems[0].date || new Date().toLocaleDateString('es-CO');
+  document.getElementById('scanStore').textContent = storeName;
+  document.getElementById('scanDate').textContent = orderDate;
+  document.getElementById('scanRefs').textContent = orderItems.length;
+  document.getElementById('globalBadge').className='status-badge active';
+  document.getElementById('globalBadge').textContent='En escaneo';
+  renderItems(); updateProgress();
+  showScreen('screen-scan');
+  setTimeout(()=>document.getElementById('barcodeInput').focus(),400);
+}
+
+// SCAN
+document.getElementById('barcodeInput').addEventListener('keydown', e=>{ if(e.key==='Enter') processBarcode(); });
+
+function processBarcode() {
+  const inp=document.getElementById('barcodeInput');
+  const code=inp.value.trim().replace(/\s/g,'');
+  inp.value=''; inp.focus();
+  if(!code) return;
+  let item=orderItems.find(it=>it.ean===code) || orderItems.find(it=>it.ean.includes(code)||code.includes(it.ean));
+  if(!item){ showToast(`❌ EAN "${code}" no está en este pedido`,'err'); return; }
+  if(item.scanned>=item.qty){ showToast(`⚠️ ${item.name} ya está completo (${item.qty} und.)`,'warn'); return; }
+  item.scanned++;
+  const rem=item.qty-item.scanned;
+  showToast(rem===0 ? `✅ ${item.name} — ¡Completo!` : `✓ ${item.name} — Faltan ${rem}`,'ok');
+  renderItems(); updateProgress(); checkClose();
+}
+
+function renderItems() {
+  const list=document.getElementById('itemsList'); list.innerHTML='';
+  orderItems.forEach(it=>{
+    const c=it.scanned>=it.qty, p=it.scanned>0&&it.scanned<it.qty;
+    const d=document.createElement('div');
+    d.className=`item-row${c?' complete':p?' partial':''}`;
+    d.innerHTML=`
+      <div class="item-dot"></div>
+      <div class="item-info">
+        <div class="item-ean">${it.ean}</div>
+        <div class="item-name">${it.name}</div>
+        ${it.date?`<div class="item-date">${it.date}</div>`:''}
+      </div>
+      <div class="item-count">
+        <div class="sc" style="color:${c?'var(--ok)':p?'var(--warn)':'var(--text-muted)'}">${it.scanned}</div>
+        <div class="tot">/ ${it.qty}</div>
+      </div>`;
+    list.appendChild(d);
+  });
+}
+
+function updateProgress() {
+  const tot=orderItems.reduce((s,i)=>s+i.qty,0);
+  const sc=orderItems.reduce((s,i)=>s+i.scanned,0);
+  const pct=tot?Math.round(sc/tot*100):0;
+  document.getElementById('ringFill').style.strokeDashoffset=326.7-(326.7*pct/100);
+  document.getElementById('progressPct').textContent=pct+'%';
+}
+
+function checkClose() {
+  const btn=document.getElementById('closeOrderBtn');
+  btn.disabled=false;
+  const allDone=orderItems.every(it=>it.scanned>=it.qty);
+  btn.textContent=allDone?'✅ Cerrar despacho — Todo completo':'Cerrar despacho con faltantes ⚠️';
+  btn.style.background=allDone?'var(--ok)':'var(--warn)';
+}
+
+function closeOrder() {
+  const missing=orderItems.filter(it=>it.scanned<it.qty);
+  if(missing.length>0 && !confirm(`⚠️ Hay ${missing.length} referencia(s) incompleta(s).\n¿Cerrar de todas formas?`)) return;
+  const allDone=missing.length===0;
+  const hero=document.getElementById('summaryHero');
+  hero.innerHTML=allDone
+    ?`<div class="s-icon">✅</div><h3>Despacho verificado</h3><p>Todas las referencias fueron escaneadas correctamente.</p>`
+    :`<div class="s-icon">⚠️</div><h3>Despacho con faltantes</h3><p>${missing.length} referencia(s) no se completaron.</p>`;
+  const now=new Date();
+  document.getElementById('summaryTs').textContent=`${storeName} · Pedido ${orderDate} · Cerrado ${now.toLocaleDateString('es-CO')} ${now.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}`;
+  document.getElementById('stTotal').textContent=orderItems.length;
+  document.getElementById('stUnits').textContent=orderItems.reduce((s,i)=>s+i.scanned,0);
+  document.getElementById('stOk').textContent=orderItems.filter(i=>i.scanned>=i.qty).length;
+  document.getElementById('stMissing').textContent=missing.length;
+  if(missing.length>0){
+    document.getElementById('missingSection').style.display='block';
+    const mb=document.getElementById('missingBody'); mb.innerHTML='';
+    missing.forEach(it=>{ const d=document.createElement('div'); d.className='missing-item'; d.innerHTML=`<div class="mref">${it.ean}</div><div class="mname">${it.name}</div><div class="mcount">Escaneadas ${it.scanned} de ${it.qty} — Faltan ${it.qty-it.scanned}</div>`; mb.appendChild(d); });
+  } else { document.getElementById('missingSection').style.display='none'; }
+  document.getElementById('globalBadge').className='status-badge done';
+  document.getElementById('globalBadge').textContent='Cerrado';
+  showScreen('screen-summary');
+}
+
+function cancelOrder() {
+  if(!confirm('¿Cancelar la verificación? Se perderá el progreso.')) return;
+  orderItems.forEach(i=>i.scanned=0);
+  const btn=document.getElementById('closeOrderBtn');
+  btn.disabled=true; btn.style.background=''; btn.textContent='Cerrar despacho';
+  document.getElementById('globalBadge').className='status-badge idle';
+  document.getElementById('globalBadge').textContent='En espera';
+  showScreen('screen-upload');
+}
+
+function newOrder() {
+  orderItems=[]; rawHeaders=[]; rawRows=[];
+  document.getElementById('fileInput').value='';
+  document.getElementById('uploadFeedback').style.display='none';
+  document.getElementById('mappingSection').style.display='none';
+  document.getElementById('storeName').value='';
+  document.getElementById('globalBadge').className='status-badge idle';
+  document.getElementById('globalBadge').textContent='En espera';
+  showScreen('screen-upload');
+}
+
+// CAMERA
+async function openCamera() {
+  document.getElementById('cameraModal').classList.add('open');
+  try {
+    cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280}}});
+    document.getElementById('videoEl').srcObject=cameraStream;
+    startDetection();
+  } catch(e) { showToast('No se pudo acceder a la cámara','err'); document.getElementById('cameraModal').classList.remove('open'); }
+}
+
+function closeCamera() {
+  document.getElementById('cameraModal').classList.remove('open');
+  if(cameraStream){cameraStream.getTracks().forEach(t=>t.stop());cameraStream=null;}
+  if(barcodeInterval){clearInterval(barcodeInterval);barcodeInterval=null;}
+}
+
+function startDetection() {
+  if(!('BarcodeDetector' in window)){ showToast('Escribe el código manualmente en este dispositivo','warn'); closeCamera(); return; }
+  const det=new BarcodeDetector({formats:['ean_13','ean_8','code_128','upc_a','upc_e','code_39','itf']});
+  const vid=document.getElementById('videoEl');
+  barcodeInterval=setInterval(async()=>{
+    if(!cameraStream) return;
+    try { const codes=await det.detect(vid); if(codes.length>0){closeCamera();document.getElementById('barcodeInput').value=codes[0].rawValue;processBarcode();} } catch(e){}
+  },350);
+}
+
+function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); window.scrollTo(0,0); }
+
+let toastT;
+function showToast(msg,type='ok') {
+  const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
